@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import EmailList from "./components/EmailList";
 import EmailDetail from "./components/EmailDetail";
-import { Email, SearchParams } from "./types/shared";
+import { Email, SearchParams, EmailCategory } from "./types/shared";
 import { api } from "./services/api";
 
 const App: React.FC = () => {
@@ -50,7 +50,7 @@ const App: React.FC = () => {
                 const params: SearchParams = {
                     account: currentAccount,
                     folder: currentFolder,
-                    ...(currentCategory !== "All" && { category: currentCategory })
+                    ...(currentCategory !== "All" && { category: currentCategory as EmailCategory })
                 };
                 
                 console.log('Fetching emails with params:', params);

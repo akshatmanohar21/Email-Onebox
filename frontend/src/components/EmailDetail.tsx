@@ -1,4 +1,6 @@
 import { Email } from "../types";
+import { useState } from 'react';
+import { api } from '../services/api';
 
 interface EmailDetailProps {
     email: Email;
@@ -6,6 +8,24 @@ interface EmailDetailProps {
 }
 
 const EmailDetail: React.FC<EmailDetailProps> = ({ email, onBack }) => {
+    const [suggestedReply, setSuggestedReply] = useState<string>('');
+    const [loadingReply, setLoadingReply] = useState(false);
+
+    const handleGetReply = async () => {
+        setLoadingReply(true);
+        try {
+            console.log('Email object:', email);
+            console.log('Email ID:', email.id);
+            console.log('Email messageId:', email.messageId);
+            
+            const reply = await api.getSuggestedReply(email.id);
+            setSuggestedReply(reply);
+        } catch (error) {
+            console.error('Error getting reply suggestion:', error);
+        }
+        setLoadingReply(false);
+    };
+
     return (
         <div className="p-4 w-full h-full overflow-auto bg-gray-50">
             <button 
@@ -30,6 +50,19 @@ const EmailDetail: React.FC<EmailDetailProps> = ({ email, onBack }) => {
                 </div>
                 <div className="whitespace-pre-wrap text-black">{email.body}</div>
             </div>
+            {suggestedReply && (
+                <div className="mt-4 p-4 bg-gray-100 rounded">
+                    <h3 className="font-bold mb-2">Suggested Reply:</h3>
+                    <p>{suggestedReply}</p>
+                </div>
+            )}
+            <button 
+                onClick={handleGetReply}
+                disabled={loadingReply}
+                className="mt-4 px-4 py-2 bg-blue-500 text-white rounded"
+            >
+                {loadingReply ? 'Generating...' : 'Suggest Reply'}
+            </button>
         </div>
     );
 };

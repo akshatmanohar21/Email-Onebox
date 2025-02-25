@@ -34,5 +34,10 @@ export const api = {
     getAccounts: async (): Promise<string[]> => {
         const response = await axios.get(`${API_BASE_URL}/accounts`);
         return response.data.accounts;
+    },
+
+    getSuggestedReply: async (emailId: string): Promise<string> => {
+        const response = await axios.get(`${API_BASE_URL}/emails/${emailId}/suggest-reply`);
+        return response.data.suggestedReply;
     }
 }; 
