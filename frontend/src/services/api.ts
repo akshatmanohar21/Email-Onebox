@@ -32,8 +32,8 @@ export const api = {
     getAccounts: async (): Promise<string[]> => {
         try {
             const response = await axios.get(`${BASE_URL}/accounts`);
-            console.log('API getAccounts response:', response.data); // Debug log
-            return response.data; // Should directly use the array
+            console.log('API getAccounts response:', response.data); 
+            return response.data; 
         } catch (error) {
             console.error('Error fetching accounts:', error);
             return [];

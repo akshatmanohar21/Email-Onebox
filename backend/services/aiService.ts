@@ -8,22 +8,24 @@ const openai = new OpenAI({
     apiKey: process.env.OPENAI_API_KEY
 });
 
-// Add delay function with exponential backoff
-const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+// quick delay helper
+const delay = (ms: number) => new Promise(r => setTimeout(r, ms));
 
-// Add rate limiting queue
-const queue: Array<() => Promise<void>> = [];
+// queue for rate limiting
 let processing = false;
+// define task type for queue
+type QueueTask = () => Promise<void>;
+const queue: QueueTask[] = [];
 
 const processQueue = async () => {
-    if (processing || queue.length === 0) return;
+    if (processing || !queue.length) return;
     processing = true;
 
     while (queue.length > 0) {
-        const task = queue.shift();
+        let task = queue.shift();
         if (task) {
             await task();
-            // Add a small delay between requests
+            // wait a bit between calls
             await delay(100);
         }
     }
@@ -33,43 +35,42 @@ const processQueue = async () => {
 
 export async function categorizeEmail(subject: string, body: string): Promise<EmailCategory> {
     try {
-        console.log('\n🔍 Starting AI categorization for email:', subject);
+        console.log(`\nCategorizing email: "${subject.slice(0, 30)}..."`);
         
-        const prompt = `
+        let prompt = `
         Analyze this email and categorize it into one of these categories:
-        - Interested: Shows interest in a job/opportunity
-        - Meeting Booked: Confirms a meeting or interview
-        - Not Interested: Rejection or lack of interest
-        - Spam: Promotional or spam content
-        - Out of Office: Auto-reply or out of office message
+        - Interested (potential customer showing interest)
+        - Meeting Booked (confirmed meeting/call)
+        - Not Interested (clear rejection or not relevant)
+        - Spam (promotional or spam content)
+        - Out of Office (auto-reply or out of office)
 
-        Email Subject: ${subject}
-        Email Body: ${body}
+        Subject: ${subject}
+        Body: ${body}
 
-        Respond with ONLY ONE of the exact category names listed above.
+        Reply with just the category name.
         `;
 
-        const completion = await openai.chat.completions.create({
+        let completion = await openai.chat.completions.create({
             messages: [{ role: "user", content: prompt }],
             model: "gpt-3.5-turbo",
-            temperature: 0,
-            max_tokens: 10
+            temperature: 0.7,
+            max_tokens: 300
         });
 
-        const category = completion.choices[0].message.content?.trim() as EmailCategory;
+        let category = completion.choices[0].message.content?.trim() as EmailCategory;
         
-        // Enhanced logging
         console.log(`
-📧 Email Categorization Results:
-Subject: ${subject}
-Category: ${category}
-Confidence: ${completion.choices[0].finish_reason === 'stop' ? 'High' : 'Low'}
-----------------------------------------`);
+Result:
+- Subject: ${subject.slice(0, 50)}...
+- Category: ${category}
+- Status: ${completion.choices[0].finish_reason === 'stop' ? 'OK' : 'Warning'}
+-------------------`);
         
         return category || EmailCategory.NotInterested;
     } catch (error) {
-        console.error('❌ Error categorizing email:', error);
-        console.log('⚠️ Defaulting to "Not Interested" category for:', subject);
+        console.error('Failed to categorize:', error);
+        console.log('Using fallback category for:', subject);
         return EmailCategory.NotInterested;
     }
 }

@@ -1,145 +1,160 @@
-import { client } from './elasticService';
-import { SearchParams, EmailDocument as Email, EmailCategory } from '../types/shared';
+import { Client } from '@elastic/elasticsearch';
+import { SearchParams, EmailDocument, EmailCategory } from '../types/shared';
 import { suggestReply } from './vectorStore';
+import dotenv from 'dotenv';
 
-export const searchEmails = async (params: SearchParams): Promise<Email[]> => {
+dotenv.config();
+
+// setup ES client
+const esClient = new Client({ 
+    node: process.env.ELASTICSEARCH_URL || 'http://localhost:9200'
+});
+
+// Add interface for ES response types
+interface ESHit {
+    _source: EmailDocument;
+    _id: string;
+}
+
+interface ESBucket {
+    key: string;
+    doc_count: number;
+}
+
+// search emails with filters
+export async function searchEmails(params: SearchParams): Promise<EmailDocument[]> {
     try {
-        // Create the base query structure
-        const must: any[] = [];
-        
-        // Add text search
-        if (params.searchText) {
+        let { searchText, account, folder, category } = params;
+        let must: any[] = [];
+
+        if(searchText?.trim()) {
             must.push({
                 multi_match: {
-                    query: params.searchText,
+                    query: searchText,
                     fields: ['subject', 'body', 'from']
                 }
             });
         }
 
-        // Add filters
-        if (params.account) {
-            must.push({
-                term: {
-                    account: params.account
-                }
-            });
-        }
-        
-        if (params.folder) {
-            must.push({
-                term: {
-                    folder: params.folder
-                }
-            });
-        }
-        
-        if (params.category && params.category !== ('All' as string)) {
-            must.push({
-                term: {
-                    category: params.category
-                }
-            });
-        }
+        if(account) must.push({ match: { account } });
+        if(folder) must.push({ match: { folder } });
+        if(category) must.push({ match: { category } });
 
-        // Construct the final query
-        const esQuery = {
+        let { body } = await esClient.search({
             index: 'emails',
             body: {
                 sort: [{ date: 'desc' }],
                 query: {
-                    bool: {
-                        must: must.length > 0 ? must : [{ match_all: {} }]
-                    }
+                    bool: { must: must.length ? must : [{ match_all: {} }] }
                 },
-                size: 1000  // Increase size from 100 to 1000
+                size: 1000
             }
-        };
-
-        console.log('Search query:', JSON.stringify(esQuery, null, 2));
-
-        // Execute the search
-        const result = await client.search(esQuery);
-        console.log('Total hits:', result.body.hits.total);
-        console.log('Number of hits returned:', result.body.hits.hits.length);
-        
-        const emails = result.body.hits.hits.map((hit: any) => {
-            return {
-                ...hit._source,
-                id: hit._id,
-                date: new Date(hit._source.date).toISOString()
-            };
         });
 
-        return emails;
-    } catch (error) {
-        console.error('Error searching emails:', error);
-        throw error;
+        return body.hits.hits.map((hit: ESHit) => ({
+            ...hit._source,
+            id: hit._id
+        }));
+    } catch(err) {
+        console.error('Search failed:', err);
+        throw new Error('Failed to search emails');
     }
-};
+}
 
-export const getAllEmails = async (): Promise<Email[]> => {
-    return searchEmails({});
-};
-
-export const getUniqueAccounts = async (): Promise<string[]> => {
-    const result = await client.search({
-        index: 'emails',
-        body: {
-            aggs: {
-                unique_accounts: {
-                    terms: { field: 'account' }
-                }
-            },
-            size: 0
-        }
-    });
-    const response = result as any;
-    return response.aggregations.unique_accounts.buckets.map((b: any) => b.key);
-};
-
-export const getUniqueFolders = async (): Promise<string[]> => {
-    const result = await client.search({
-        index: 'emails',
-        body: {
-            aggs: {
-                unique_folders: {
-                    terms: { field: 'folder' }
-                }
-            },
-            size: 0
-        }
-    });
-    const response = result as any;
-    return response.aggregations.unique_folders.buckets.map((b: any) => b.key);
-};
-
-const getEmailById = async (emailId: string): Promise<Email | null> => {
+// get all emails
+export async function getAllEmails(limit = 1000): Promise<EmailDocument[]> {
     try {
-        console.log('Attempting to get email with ID:', emailId);
-        const result = await client.get({
+        let { body } = await esClient.search({
             index: 'emails',
-            id: emailId
+            body: {
+                sort: [{ date: 'desc' }],
+                query: { match_all: {} },
+                size: limit
+            }
         });
-        console.log('Raw Elasticsearch response:', result);
-        
-        // The _source is in result.body._source
-        if (!result.body?._source) {
-            console.log('No _source found in response');
-            return null;
-        }
 
-        const email = {
+        return body.hits.hits.map((hit: ESHit) => ({
+            ...hit._source,
+            id: hit._id
+        }));
+    } catch(err) {
+        console.error('Failed to fetch emails:', err);
+        throw new Error('Failed to get emails');
+    }
+}
+
+// get unique accounts
+export async function getUniqueAccounts(): Promise<string[]> {
+    try {
+        // check env vars first
+        let configuredAccounts = [
+            process.env.IMAP_USER_1,
+            process.env.IMAP_USER_2
+        ].filter(Boolean) as string[];
+
+        if(configuredAccounts.length) return configuredAccounts;
+
+        // fallback to ES query
+        let { body } = await esClient.search({
+            index: 'emails',
+            body: {
+                size: 0,
+                aggs: {
+                    unique_accounts: {
+                        terms: { field: 'account', size: 100 }
+                    }
+                }
+            }
+        });
+
+        return body.aggregations?.unique_accounts?.buckets
+            .map((bucket: ESBucket) => bucket.key) || [];
+    } catch(err) {
+        console.error('Failed to get accounts:', err);
+        return [];
+    }
+}
+
+// get unique folders
+export async function getUniqueFolders(): Promise<string[]> {
+    try {
+        let { body } = await esClient.search({
+            index: 'emails',
+            body: {
+                size: 0,
+                aggs: {
+                    unique_folders: {
+                        terms: { field: 'folder', size: 100 }
+                    }
+                }
+            }
+        });
+
+        return body.aggregations?.unique_folders?.buckets
+            .map((bucket: ESBucket) => bucket.key) || [];
+    } catch(err) {
+        console.error('Failed to get folders:', err);
+        throw new Error('Failed to get folders');
+    }
+}
+
+// get email by id
+export async function getEmailById(id: string): Promise<EmailDocument | null> {
+    try {
+        let result = await esClient.get({
+            index: 'emails',
+            id: id
+        });
+
+        return {
             ...result.body._source,
             id: result.body._id
         };
-        console.log('Returning email:', email);
-        return email;
-    } catch (error) {
-        console.error('Error getting email by ID:', error);
+    } catch(err) {
+        console.error('Failed to get email:', err);
         return null;
     }
-};
+}
 
 export const getReplysuggestion = async (emailId: string): Promise<string> => {
     try {

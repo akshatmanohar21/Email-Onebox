@@ -3,20 +3,20 @@ import { Document } from '@langchain/core/documents';
 import { MemoryVectorStore } from "langchain/vectorstores/memory";
 import { OpenAI } from 'openai';
 
-// Initialize OpenAI
-const openai = new OpenAI({
+// setup openai
+let openai = new OpenAI({
     apiKey: process.env.OPENAI_API_KEY
 });
 
-// Initialize embeddings and vector store
-const embeddings = new OpenAIEmbeddings({
+// setup embeddings and store
+let embeddings = new OpenAIEmbeddings({
     openAIApiKey: process.env.OPENAI_API_KEY,
 });
 
-const vectorStore = new MemoryVectorStore(embeddings);
+let vectorStore = new MemoryVectorStore(embeddings);
 
-// Sample product/outreach data
-const productDocs = [
+// product docs for training
+let docs = [
     new Document({
         pageContent: `
         Product: Email Management System
@@ -53,27 +53,27 @@ const productDocs = [
     })
 ];
 
-// Initialize vector store
+// init store with docs
 export const initVectorStore = async () => {
-    await vectorStore.addDocuments(productDocs);
-    console.log('Vector store initialized with product docs');
+    await vectorStore.addDocuments(docs);
+    console.log('Vector store ready');
 };
 
-// This function handles the Retrieval part of RAG
+// get relevant context for query
 export async function getRelevantContext(query: string): Promise<string> {
-    const results = await vectorStore.similaritySearch(query, 2);
-    return results.map((doc: Document) => doc.pageContent).join('\n\n');
+    let results = await vectorStore.similaritySearch(query, 2);
+    return results.map(doc => doc.pageContent).join('\n\n');
 }
 
-// New function to suggest replies
+// suggest reply using RAG
 export async function suggestReply(emailContent: string): Promise<string> {
     try {
-        // Retrieval: Get relevant context
-        const context = await getRelevantContext(emailContent);
-        const meetingLink = process.env.MEETING_LINK;
-        
-        // Augmentation: Combine context with the email
-        const prompt = `
+        // get context
+        let context = await getRelevantContext(emailContent);
+        let meetingLink = process.env.MEETING_LINK;
+
+        // build prompt
+        let prompt = `
 You are an AI assistant helping with email responses. Here's what you need to know:
 
 Context about our system:
@@ -91,8 +91,8 @@ Please write a professional and friendly reply. Important guidelines:
 
 Write the reply now:`;
 
-        // Generation: Create the response
-        const completion = await openai.chat.completions.create({
+        // generate response
+        let completion = await openai.chat.completions.create({
             model: "gpt-3.5-turbo",
             messages: [
                 { 
@@ -105,8 +105,8 @@ Write the reply now:`;
         });
 
         return completion.choices[0].message.content || "Could not generate a reply.";
-    } catch (error) {
-        console.error('Error suggesting reply:', error);
-        throw error;
+    } catch (err) {
+        console.error('Reply gen failed:', err);
+        throw err;
     }
 } 
