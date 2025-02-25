@@ -1,0 +1,36 @@
+{
+  "compilerOptions": {
+    /* Language and Environment */
+    "target": "ESNext",                                  /* Use latest JavaScript features */
+    "module": "CommonJS",                                /* Use CommonJS for Node.js compatibility */
+    "lib": ["ESNext"],                                   /* Use the latest ES features */
+    "outDir": "dist",                                    /* Output compiled JS files here */
+    "rootDir": "./",                                     /* Root directory for TypeScript files */
+
+    /* Module Resolution */
+    "moduleResolution": "Node",                          /* Ensure correct resolution of Node.js modules */
+    "esModuleInterop": true,                             /* Enable compatibility with CommonJS/ES Modules */
+    "resolveJsonModule": true,                           /* Allow importing JSON files */
+    "allowSyntheticDefaultImports": true,                /* Support for default imports from CommonJS */
+    
+    /* Type Checking */
+    "strict": true,                                      /* Enable strict type checking */
+    "forceConsistentCasingInFileNames": true,            /* Ensure consistent import casing */
+    "skipLibCheck": true,                                /* Speed up compilation by skipping .d.ts checks */
+    
+    /* Emit */
+    "noEmit": false,                                     /* Ensure TypeScript emits JavaScript files */
+    "sourceMap": true,                                   /* Enable source maps for debugging */
+    "removeComments": true,                                /* Remove comments from compiled JS */
+    "typeRoots": ["./types", "./node_modules/@types"],
+    "types": ["node"],
+    "baseUrl": ".",
+    "paths": {
+      "*": ["types/*"]
+    },
+    "declaration": true,
+    "declarationDir": "./types"
+  },
+  "include": ["server.ts", "services/**/*.ts", "types/**/*.d.ts"],                /* Include main server and src files */
+  "exclude": ["node_modules", "dist"]                    /* Exclude compiled and dependency files */
+}

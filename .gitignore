@@ -1,0 +1,25 @@
+# Node modules
+backend/node_modules/
+frontend/node_modules/
+
+# Logs and debugging
+logs
+*.log
+npm-debug.log*
+
+# Environment files
+.env
+
+# VSCode settings
+.vscode
+
+# Build directories
+dist
+build
+
+# MacOS files
+.DS_Store
+
+# Optional: Ignore local environment variables files
+.env
+.env.local
