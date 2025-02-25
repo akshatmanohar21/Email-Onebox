@@ -102,9 +102,10 @@ export async function initializeElasticsearchIndex(): Promise<boolean> {
 // Function to index an email
 export async function indexEmail(email: EmailDocument): Promise<void> {
     try {
+        console.log('Indexing email with ID:', email.id);
         await client.index({
             index: 'emails',
-            id: email.messageId,
+            id: email.id,
             body: {
                 ...email,
                 date: new Date(email.date).toISOString()
@@ -148,19 +149,20 @@ export async function getAllEmails(): Promise<EmailDocument[]> {
 }
 
 // Update storeEmail function
-export async function storeEmail(email: EmailDocument): Promise<void> {
+export const storeEmail = async (email: EmailDocument): Promise<void> => {
     try {
-        await client.index({
+        console.log('Storing email with ID:', email.id);
+        const result = await client.index({
             index: 'emails',
-            id: email.messageId,
-            body: email,
-            refresh: true
+            id: email.id,
+            body: email
         });
+        console.log('Email stored with result:', result);
     } catch (error) {
         console.error('Error storing email:', error);
         throw error;
     }
-}
+};
 
 // Update searchEmails function with proper typing
 export async function searchEmails(params: SearchParams): Promise<EmailDocument[]> {
@@ -329,3 +331,35 @@ export async function getUniqueFolders(): Promise<string[]> {
         throw error;
     }
 }
+
+// Add this to your existing code
+export const debugEmailById = async (id: string) => {
+    try {
+        console.log('Debugging email ID:', id);
+        // Try direct ID lookup
+        const directResult = await client.get({
+            index: 'emails',
+            id: id
+        }).catch(e => console.log('Direct lookup failed:', e.message));
+        console.log('Direct lookup result:', directResult);
+
+        // Try search with explicit type
+        const searchResult = await client.search({
+            index: 'emails',
+            body: {
+                query: {
+                    match_all: {}
+                },
+                size: 10
+            }
+        });
+        console.log('First 10 emails in index:', 
+            searchResult.body.hits.hits.map((hit: ElasticsearchHit) => ({
+                id: hit._id,
+                subject: hit._source.subject
+            }))
+        );
+    } catch (error) {
+        console.error('Debug error:', error);
+    }
+};

@@ -163,13 +163,14 @@ const processMessage = async (msg: any, account: ImapAccount, folder: string) =>
             );
 
             const emailData: EmailDocument = {
+                id: uniqueId,
                 messageId: uniqueId,
                 account: account.user,
                 folder: folder,
                 from: parsed.from?.text || 'Unknown',
                 subject: parsed.subject || 'No Subject',
                 body: parsed.text || '',
-                date: parsed.date || new Date(),
+                date: (parsed.date || new Date()).toISOString(),
                 category: category
             };
 

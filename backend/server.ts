@@ -5,6 +5,8 @@ import { initializeElasticsearchIndex, searchEmails, getUniqueAccounts, getUniqu
 import { SearchParams } from "./types/shared";
 import cors from 'cors';
 import { EmailCategory } from "./types/shared";
+import { initVectorStore } from './services/vectorStore';
+import { getReplysuggestion } from "./services/emailService";
 
 dotenv.config();
 const app = express();
@@ -68,6 +70,18 @@ app.get('/api/accounts', async (_req: Request, res: ExpressResponse) => {
     }
 });
 
+// Get reply suggestion
+app.get('/api/emails/:id/suggest-reply', async (req: Request, res: ExpressResponse) => {
+    try {
+        const emailId = req.params.id;
+        const suggestedReply = await getReplysuggestion(emailId);
+        res.json({ suggestedReply });
+    } catch (error) {
+        console.error('Error getting reply suggestion:', error);
+        res.status(500).json({ error: 'Failed to get reply suggestion' });
+    }
+});
+
 const startServer = async () => {
     try {
         console.log('Starting server initialization...');
@@ -75,6 +89,10 @@ const startServer = async () => {
         // Initialize Elasticsearch
         await initializeElasticsearchIndex();
         console.log('Elasticsearch index initialized');
+
+        // Initialize Vector Store
+        await initVectorStore();
+        console.log('Vector store initialized');
 
         // Start the server
         app.listen(PORT, () => {

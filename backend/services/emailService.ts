@@ -1,5 +1,6 @@
 import { client } from './elasticService';
 import { SearchParams, EmailDocument as Email, EmailCategory } from '../types/shared';
+import { suggestReply } from './vectorStore';
 
 export const searchEmails = async (params: SearchParams): Promise<Email[]> => {
     try {
@@ -33,10 +34,10 @@ export const searchEmails = async (params: SearchParams): Promise<Email[]> => {
             });
         }
         
-        if (params.category && params.category !== 'All') {
+        if (params.category && params.category !== ('All' as string)) {
             must.push({
                 term: {
-                    category: params.category as EmailCategory
+                    category: params.category
                 }
             });
         }
@@ -59,12 +60,16 @@ export const searchEmails = async (params: SearchParams): Promise<Email[]> => {
 
         // Execute the search
         const result = await client.search(esQuery);
+        const searchResponse = result as any;  // Type assertion for Elasticsearch response
         
-        // Map the results and include the _id field
-        const emails = result.hits.hits.map((hit: any) => ({
-            ...hit._source,
-            id: hit._id
-        }));
+        const emails = searchResponse.hits.hits.map((hit: any) => {
+            console.log('Hit from ES:', hit);
+            return {
+                ...hit._source,
+                id: hit._id,
+                date: new Date(hit._source.date).toISOString()
+            };
+        });
 
         return emails;
     } catch (error) {
@@ -89,7 +94,8 @@ export const getUniqueAccounts = async (): Promise<string[]> => {
             size: 0
         }
     });
-    return result.aggregations.unique_accounts.buckets.map((b: any) => b.key);
+    const response = result as any;
+    return response.aggregations.unique_accounts.buckets.map((b: any) => b.key);
 };
 
 export const getUniqueFolders = async (): Promise<string[]> => {
@@ -104,5 +110,71 @@ export const getUniqueFolders = async (): Promise<string[]> => {
             size: 0
         }
     });
-    return result.aggregations.unique_folders.buckets.map((b: any) => b.key);
+    const response = result as any;
+    return response.aggregations.unique_folders.buckets.map((b: any) => b.key);
+};
+
+const getEmailById = async (emailId: string): Promise<Email | null> => {
+    try {
+        console.log('Attempting to get email with ID:', emailId);
+        const result = await client.get({
+            index: 'emails',
+            id: emailId
+        });
+        console.log('Raw Elasticsearch response:', result);
+        
+        // The _source is in result.body._source
+        if (!result.body?._source) {
+            console.log('No _source found in response');
+            return null;
+        }
+
+        const email = {
+            ...result.body._source,
+            id: result.body._id
+        };
+        console.log('Returning email:', email);
+        return email;
+    } catch (error) {
+        console.error('Error getting email by ID:', error);
+        return null;
+    }
+};
+
+export const getReplysuggestion = async (emailId: string): Promise<string> => {
+    try {
+        console.log('Looking for email with ID:', emailId);
+        
+        const email = await getEmailById(emailId);
+        console.log('Found email:', email);
+        
+        if (!email) {
+            throw new Error('Email not found');
+        }
+
+        // Add validation for required fields
+        if (!email.subject || !email.from || !email.body) {
+            console.error('Email missing required fields:', email);
+            throw new Error('Email missing required fields');
+        }
+
+        try {
+            const emailContent = `
+Subject: ${email.subject}
+From: ${email.from}
+Body: ${email.body}`;
+
+            const reply = await suggestReply(emailContent);
+            if (!reply) {
+                throw new Error('No reply generated');
+            }
+            return reply;
+        } catch (aiError) {
+            console.error('Error generating reply:', aiError);
+            throw new Error('Failed to generate reply');
+        }
+    } catch (error) {
+        console.error('Error in getReplysuggestion:', error);
+        throw error;
+    }
 }; 
