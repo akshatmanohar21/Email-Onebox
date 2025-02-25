@@ -35,6 +35,14 @@ The backend uses:
 - Elasticsearch for storing emails
 - Slack API for notifications
 
+## Set up Docker for Elastic
+
+Run these commands:
+
+- `docker-compose d -v`
+- `docker-compose up -v`
+
+
 Main folders:
 
 backend/
@@ -91,7 +99,7 @@ You can combine search parameters (searchText, folder, account, category) to cre
 
 ## Demo
 
-Video link: []
+Video link: [https://drive.google.com/file/d/1tIGzlE2iJAoNe94UBzxGrNh1lgaRbtFn/view?usp=sharing]
 
 ## Environment Variables
 
