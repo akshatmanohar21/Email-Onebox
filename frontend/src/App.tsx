@@ -51,9 +51,14 @@ const App: React.FC = () => {
                 if (currentFolder) searchParams.folder = currentFolder;
                 if (currentCategory && currentCategory !== "All") {
                     searchParams.category = currentCategory;
+                    console.log('Applying category filter:', currentCategory);
                 }
                 
+                console.log('Fetching emails with params:', searchParams);
+                
                 const emailsData = await api.searchEmails(searchParams);
+                console.log('Received emails:', emailsData.length, 'matching category:', currentCategory);
+                
                 setEmails(emailsData);
             } catch (error) {
                 console.error('Error fetching emails:', error);
@@ -158,10 +163,11 @@ const App: React.FC = () => {
                 <main style={{ 
                     flex: "1 1 auto",
                     display: "flex", 
-                    overflow: "hidden", 
+                    overflow: "hidden",
                     backgroundColor: "#f1f3f4",
                     padding: "1rem",
-                    width: "calc(100% - 200px)"
+                    width: "calc(100% - 200px)",
+                    height: "calc(100vh - 64px)"
                 }}>
                     <div style={{ 
                         flex: 1,

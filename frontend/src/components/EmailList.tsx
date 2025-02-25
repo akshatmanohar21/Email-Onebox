@@ -7,33 +7,22 @@ interface EmailListProps {
 
 const EmailList: React.FC<EmailListProps> = ({ emails, onSelectEmail }) => {
     return (
-        <div className="divide-y divide-gray-200 w-full h-full overflow-auto bg-gray-50">
-            {emails.length === 0 ? (
-                <div className="flex items-center justify-center h-full text-black">
-                    No emails found
-                </div>
-            ) : (
-                <div className="bg-white rounded-lg shadow-sm m-2">
-                    {emails.map((email) => (
-                        <div
-                            key={email.messageId}
-                            className="flex items-center p-4 hover:bg-gray-100 cursor-pointer border-b last:border-b-0"
-                            onClick={() => onSelectEmail(email)}
-                        >
-                            <div className="flex-1">
-                                <div className="font-bold text-black">{email.from}</div>
-                                <div className="text-sm text-black">{email.subject}</div>
-                                <div className="text-xs text-black">
-                                    Category: {email.category}
-                                </div>
-                            </div>
-                            <div className="text-sm text-black">
-                                {new Date(email.date).toLocaleDateString()}
-                            </div>
+        <div className="w-full h-full overflow-auto">
+            <div className="space-y-2 p-4">
+                {emails.map((email) => (
+                    <div
+                        key={email.messageId}
+                        className="bg-white rounded-lg shadow p-4 cursor-pointer hover:bg-gray-50"
+                        onClick={() => onSelectEmail(email)}
+                    >
+                        <div className="font-bold text-black">{email.from}</div>
+                        <div className="text-gray-600">{email.subject}</div>
+                        <div className="text-gray-400 text-sm">
+                            {new Date(email.date).toLocaleString()}
                         </div>
-                    ))}
-                </div>
-            )}
+                    </div>
+                ))}
+            </div>
         </div>
     );
 };

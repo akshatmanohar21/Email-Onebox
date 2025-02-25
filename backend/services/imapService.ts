@@ -34,6 +34,8 @@ const accounts: ImapAccount[] = [
     }
 ];
 
+let imapConnections: Imap[] = [];
+
 const connectImap = (account: ImapAccount): Promise<Imap> => {
     return new Promise((resolve, reject) => {
         const imap = new Imap({
@@ -182,36 +184,61 @@ const fetchLastMonth = async (imap: Imap, account: ImapAccount, folder: string):
     });
 };
 
-export async function fetchEmails() {
-    for (const account of accounts) {
+const maintainConnection = async (account: ImapAccount) => {
+    while (true) {
         try {
-            console.log(`Processing account: ${account.user}`);
+            console.log(`Establishing persistent connection for ${account.user}`);
             const imap = await connectImap(account);
+            imapConnections.push(imap);
             
-            // Get all folders including Gmail special folders
             const folders = await getFolders(imap);
-            console.log(`Found folders for ${account.user}:`, folders);
-
-            // Process each folder
+            
+            // Initial fetch
             for (const folder of folders) {
-                try {
-                    await fetchLastMonth(imap, account, folder);
-                } catch (error) {
-                    console.error(`Error processing folder ${folder}:`, error);
-                    // Continue with other folders even if one fails
-                }
+                await fetchLastMonth(imap, account, folder);
             }
 
-            // Set up IDLE mode for real-time updates
-            imap.on('mail', async () => {
-                console.log(`New email received for ${account.user}`);
-                for (const folder of folders) {
-                    await fetchLastMonth(imap, account, folder);
-                }
+            // Keep INBOX open and watch for new emails
+            await new Promise((resolve, reject) => {
+                imap.openBox('INBOX', false, (err) => {
+                    if (err) {
+                        console.error('Error opening INBOX:', err);
+                        reject(err);
+                        return;
+                    }
+
+                    console.log(`INBOX opened for watching - ${account.user}`);
+                    
+                    // Listen for new emails
+                    imap.on('mail', async () => {
+                        console.log(`New email received for ${account.user}`);
+                        for (const folder of folders) {
+                            await fetchLastMonth(imap, account, folder);
+                        }
+                    });
+                });
+            });
+
+            // Keep connection alive
+            await new Promise((resolve) => {
+                imap.on('end', () => {
+                    console.log(`Connection ended for ${account.user}, reconnecting...`);
+                    resolve(null);
+                });
             });
 
         } catch (error) {
-            console.error(`Error processing account ${account.user}:`, error);
+            console.error(`Connection error for ${account.user}:`, error);
+            await new Promise(resolve => setTimeout(resolve, 5000));
         }
     }
+};
+
+export async function fetchEmails() {
+    // Start persistent connections for all accounts
+    accounts.forEach(account => {
+        maintainConnection(account).catch(error => {
+            console.error(`Error in maintainConnection for ${account.user}:`, error);
+        });
+    });
 }

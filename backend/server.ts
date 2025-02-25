@@ -1,8 +1,10 @@
-import express from "express";
+import express, { Request, Response as ExpressResponse } from "express";
 import dotenv from "dotenv";
 import { fetchEmails } from "./services/imapService";
 import { initializeElasticsearchIndex, searchEmails, getUniqueAccounts, getUniqueFolders, getAllEmails } from "./services/elasticService";
+import { SearchParams } from "./types/shared";
 import cors from 'cors';
+import { EmailCategory } from "./types/shared";
 
 dotenv.config();
 const app = express();
@@ -12,12 +14,12 @@ app.use(cors());
 app.use(express.json());
 
 // Health check endpoint
-app.get('/health', (req, res) => {
+app.get('/health', (_req: Request, res: ExpressResponse) => {
     res.json({ status: 'ok' });
 });
 
 // Get all emails
-app.get('/api/emails', async (req, res) => {
+app.get('/api/emails', async (_req: Request, res: ExpressResponse) => {
     try {
         const emails = await getAllEmails();
         res.json({ emails });
@@ -28,14 +30,15 @@ app.get('/api/emails', async (req, res) => {
 });
 
 // Search emails
-app.get('/api/emails/search', async (req, res) => {
+app.get('/api/emails/search', async (req: Request, res: ExpressResponse) => {
     try {
-        const { searchText, folder, account } = req.query;
-        const emails = await searchEmails({
-            searchText: searchText as string,
-            folder: folder as string,
-            account: account as string
-        });
+        const searchParams: SearchParams = {
+            searchText: req.query.searchText as string,
+            folder: req.query.folder as string,
+            account: req.query.account as string,
+            category: req.query.category as EmailCategory
+        };
+        const emails = await searchEmails(searchParams);
         res.json({ emails });
     } catch (error) {
         console.error('Error searching emails:', error);
@@ -44,7 +47,7 @@ app.get('/api/emails/search', async (req, res) => {
 });
 
 // Get unique folders
-app.get('/api/folders', async (req, res) => {
+app.get('/api/folders', async (_req: Request, res: ExpressResponse) => {
     try {
         const folders = await getUniqueFolders();
         res.json({ folders });
@@ -55,7 +58,7 @@ app.get('/api/folders', async (req, res) => {
 });
 
 // Get unique accounts
-app.get('/api/accounts', async (req, res) => {
+app.get('/api/accounts', async (_req: Request, res: ExpressResponse) => {
     try {
         const accounts = await getUniqueAccounts();
         res.json({ accounts });
@@ -70,10 +73,7 @@ const startServer = async () => {
         console.log('Starting server initialization...');
         
         // Initialize Elasticsearch
-        const indexCreated = await initializeElasticsearchIndex();
-        if (!indexCreated) {
-            throw new Error('Failed to initialize Elasticsearch index');
-        }
+        await initializeElasticsearchIndex();
         console.log('Elasticsearch index initialized');
 
         // Start the server

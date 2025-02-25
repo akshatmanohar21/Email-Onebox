@@ -1,4 +1,4 @@
-import { Client } from "@elastic/elasticsearch";
+import { Client } from '@elastic/elasticsearch';
 import { EmailDocument, EmailCategory, SearchParams } from '../types/shared';
 import dotenv from "dotenv";
 
