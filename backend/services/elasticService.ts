@@ -41,57 +41,53 @@ interface ElasticsearchBucket {
 // Function to check and create index if it doesn't exist
 export async function initializeElasticsearchIndex(): Promise<boolean> {
     try {
-        // Try to delete the index if it exists, ignore 404 errors
+        // Try to create index, if it fails with 400 error, it already exists
         try {
-            await client.indices.delete({ index: 'emails' });
-            console.log('Deleted existing index');
-        } catch (error: any) {
-            if (error.meta?.body?.status !== 404) {
-                throw error; // Re-throw if it's not a 404 error
-            }
-            console.log('No existing index to delete');
-        }
-
-        // Create new index with mappings
-        await client.indices.create({
-            index: 'emails',
-            body: {
-                settings: {
-                    analysis: {
-                        analyzer: {
-                            email_analyzer: {
-                                type: 'custom',
-                                tokenizer: 'standard',
-                                filter: ['lowercase', 'stop', 'trim']
+            await client.indices.create({
+                index: 'emails',
+                body: {
+                    settings: {
+                        analysis: {
+                            analyzer: {
+                                email_analyzer: {
+                                    type: 'custom',
+                                    tokenizer: 'standard',
+                                    filter: ['lowercase', 'stop', 'trim']
+                                }
                             }
                         }
-                    }
-                },
-                mappings: {
-                    properties: {
-                        messageId: { type: 'keyword' },
-                        account: { type: 'keyword' },
-                        folder: { type: 'keyword' },
-                        from: { 
-                            type: 'text',
-                            analyzer: 'email_analyzer'
-                        },
-                        subject: { 
-                            type: 'text',
-                            analyzer: 'email_analyzer'
-                        },
-                        body: { 
-                            type: 'text',
-                            analyzer: 'email_analyzer'
-                        },
-                        date: { type: 'date' },
-                        category: { type: 'keyword' }
+                    },
+                    mappings: {
+                        properties: {
+                            messageId: { type: 'keyword' },
+                            account: { type: 'keyword' },
+                            folder: { type: 'keyword' },
+                            from: { 
+                                type: 'text',
+                                analyzer: 'email_analyzer'
+                            },
+                            subject: { 
+                                type: 'text',
+                                analyzer: 'email_analyzer'
+                            },
+                            body: { 
+                                type: 'text',
+                                analyzer: 'email_analyzer'
+                            },
+                            date: { type: 'date' },
+                            category: { type: 'keyword' }
+                        }
                     }
                 }
+            });
+            console.log('Created new index with mappings');
+        } catch (error: any) {
+            if (error.meta?.statusCode === 400) {
+                console.log('Index already exists, skipping creation');
+            } else {
+                throw error;
             }
-        });
-
-        console.log('Created new index with mappings');
+        }
         return true;
     } catch (error) {
         console.error('Error initializing Elasticsearch:', error);
@@ -102,7 +98,13 @@ export async function initializeElasticsearchIndex(): Promise<boolean> {
 // Function to index an email
 export async function indexEmail(email: EmailDocument): Promise<void> {
     try {
-        console.log('Indexing email with ID:', email.id);
+        console.log('Attempting to index email:', {
+            subject: email.subject,
+            from: email.from,
+            date: email.date,
+            id: email.id
+        });
+        
         await client.index({
             index: 'emails',
             id: email.id,
@@ -112,9 +114,11 @@ export async function indexEmail(email: EmailDocument): Promise<void> {
             },
             refresh: true
         });
-        console.log(`📥 Indexed email: ${email.subject}`);
+        
+        console.log('Successfully indexed email:', email.subject);
     } catch (error) {
         console.error('Error indexing email:', error);
+        throw error;
     }
 }
 
@@ -170,11 +174,15 @@ export async function searchEmails(params: SearchParams): Promise<EmailDocument[
         const { searchText, folder, account, category } = params;
         const must: any[] = [];
         
-        if (searchText) {
+        if (searchText && searchText.trim() !== '') {  // Add trim check
             must.push({
                 multi_match: {
                     query: searchText,
-                    fields: ['subject^2', 'body', 'from']
+                    fields: ['subject^2', 'body', 'from'],
+                    // Add these parameters for better matching
+                    fuzziness: 'AUTO',
+                    operator: 'or',
+                    minimum_should_match: '30%'
                 }
             });
         }
@@ -187,8 +195,12 @@ export async function searchEmails(params: SearchParams): Promise<EmailDocument[
             must.push({ term: { account: account } });
         }
 
-        if (category) {
-            must.push({ term: { category: category } });
+        if (category && category !== EmailCategory.All) {  // Use enum value instead of string
+            must.push({ 
+                term: { 
+                    category: category.toString()  // Convert enum to string for Elasticsearch
+                } 
+            });
         }
 
         const searchQuery = {
@@ -199,12 +211,23 @@ export async function searchEmails(params: SearchParams): Promise<EmailDocument[
                     bool: {
                         must: must.length > 0 ? must : [{ match_all: {} }]
                     }
-                }
+                },
+                size: 1000  // Increase size to get more results
             }
         };
 
         console.log('Search query:', JSON.stringify(searchQuery, null, 2));
         const { body } = await client.search(searchQuery);
+        
+        // Add debug logging
+        console.log('Search results:', {
+            total: body.hits.total.value,
+            returned: body.hits.hits.length,
+            searchText,
+            folder,
+            account,
+            category
+        });
 
         return (body.hits?.hits || []).map((hit: ElasticsearchHit) => ({
             ...hit._source,
@@ -260,9 +283,25 @@ export const getEmailById = async (id: string) => {
     }
 };
 
-// Update getUniqueAccounts function with proper typing
+// Update getUniqueAccounts function
 export async function getUniqueAccounts(): Promise<string[]> {
     try {
+        const configuredAccounts = [
+            process.env.IMAP_USER_1,
+            process.env.IMAP_USER_2
+        ].filter((account): account is string => {
+            console.log('Checking account:', account);
+            return !!account;
+        });
+
+        console.log('Raw configured accounts:', process.env.IMAP_USER_1, process.env.IMAP_USER_2);
+        console.log('Filtered configured accounts:', configuredAccounts);
+
+        if (configuredAccounts.length > 0) {
+            return configuredAccounts;
+        }
+
+        // Fallback to Elasticsearch aggregation
         const { body } = await client.search({
             index: 'emails',
             body: {
@@ -270,7 +309,7 @@ export async function getUniqueAccounts(): Promise<string[]> {
                 aggs: {
                     unique_accounts: {
                         terms: {
-                            field: 'account',
+                            field: 'account.keyword',
                             size: 100
                         }
                     }
@@ -278,11 +317,14 @@ export async function getUniqueAccounts(): Promise<string[]> {
             }
         });
 
-        return (body.aggregations?.unique_accounts?.buckets || [])
-            .map((bucket: ElasticsearchBucket) => bucket.key);
+        const buckets = body.aggregations?.unique_accounts?.buckets || [];
+        const accounts = buckets.map((bucket: ElasticsearchBucket) => bucket.key);
+        
+        console.log('Found accounts from Elasticsearch:', accounts); // Debug log
+        return accounts;
     } catch (error) {
-        console.error('Error fetching unique accounts:', error);
-        throw error;
+        console.error('Error in getUniqueAccounts:', error);
+        return [];
     }
 }
 
@@ -363,3 +405,67 @@ export const debugEmailById = async (id: string) => {
         console.error('Debug error:', error);
     }
 };
+
+export const debugAllEmails = async () => {
+    try {
+        const result = await client.search({
+            index: 'emails',
+            body: {
+                query: { match_all: {} },
+                size: 1000,
+                sort: [{ date: 'desc' }]
+            }
+        });
+        
+        console.log('Total emails in index:', result.body.hits.total);
+        console.log('Sample of emails:', 
+            result.body.hits.hits.map((hit: any) => ({
+                id: hit._id,
+                subject: hit._source.subject,
+                account: hit._source.account,
+                date: hit._source.date
+            }))
+        );
+    } catch (error) {
+        console.error('Debug error:', error);
+    }
+};
+
+// Add a function to check for specific email
+export async function debugFindEmail(subject: string): Promise<void> {
+    try {
+        const result = await client.search({
+            index: 'emails',
+            body: {
+                query: {
+                    match_phrase: {
+                        subject: subject
+                    }
+                }
+            }
+        });
+        console.log('Search for email:', subject);
+        console.log('Results:', result.body.hits.hits);
+    } catch (error) {
+        console.error('Error searching for email:', error);
+    }
+}
+
+// Add this function to clear the index
+export async function clearEmailIndex(): Promise<void> {
+    try {
+        // Delete the index
+        await client.indices.delete({
+            index: 'emails',
+            ignore_unavailable: true
+        });
+        console.log('Email index cleared successfully');
+        
+        // Recreate the index with proper mappings
+        await initializeElasticsearchIndex();
+        console.log('Email index reinitialized');
+    } catch (error) {
+        console.error('Error clearing email index:', error);
+        throw error;
+    }
+}

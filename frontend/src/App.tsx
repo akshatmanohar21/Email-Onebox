@@ -14,6 +14,7 @@ const App: React.FC = () => {
     const [currentCategory, setCurrentCategory] = useState<string>("");
     const [loading, setLoading] = useState(true);
     const [searchParams, setSearchParams] = useState<SearchParams>({});
+    const [lastRefresh, setLastRefresh] = useState(Date.now());
 
     const categories = [
         "All",
@@ -31,13 +32,18 @@ const App: React.FC = () => {
                     api.getAccounts(),
                     api.getFolders()
                 ]);
-                setAccounts(accountsData);
-                setFolders(foldersData);
-                if (accountsData.length > 0) {
+                console.log('Raw accounts data:', accountsData);
+                console.log('Setting accounts state:', accountsData || []);
+                setAccounts(accountsData || []);
+                setFolders(foldersData || []);
+                if (accountsData?.length > 0) {
+                    console.log('Setting initial account:', accountsData[0]);
                     setCurrentAccount(accountsData[0]);
                 }
             } catch (error) {
                 console.error('Error initializing data:', error);
+                setAccounts([]);
+                setFolders([]);
             }
         };
         initializeData();
@@ -62,11 +68,42 @@ const App: React.FC = () => {
             setLoading(false);
         };
         fetchEmails();
-    }, [currentAccount, currentFolder, currentCategory]);
+    }, [currentAccount, currentFolder, currentCategory, lastRefresh]);
 
-    const handleSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
-        setSearchParams({ ...searchParams, searchText: e.target.value });
+    useEffect(() => {
+        const pollInterval = setInterval(() => {
+            setLastRefresh(Date.now());
+        }, 30000);
+
+        return () => clearInterval(pollInterval);
+    }, []);
+
+    const handleSearch = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        setLoading(true);
+        try {
+            const params: SearchParams = {
+                searchText: e.target.value,
+                account: currentAccount,
+                folder: currentFolder,
+                ...(currentCategory !== "All" && { category: currentCategory as EmailCategory })
+            };
+            
+            const emailsData = await api.searchEmails(params);
+            setEmails(emailsData);
+        } catch (error) {
+            console.error('Error searching emails:', error);
+        }
+        setLoading(false);
     };
+
+    useEffect(() => {
+        const timeoutId = setTimeout(() => {
+            if (searchParams.searchText) {
+                handleSearch({ target: { value: searchParams.searchText } } as React.ChangeEvent<HTMLInputElement>);
+            }
+        }, 300);
+        return () => clearTimeout(timeoutId);
+    }, [searchParams.searchText]);
 
     return (
         <div style={{ 
@@ -95,7 +132,7 @@ const App: React.FC = () => {
                     <input
                         type="text"
                         placeholder="Search emails..."
-                        onChange={handleSearch}
+                        onChange={(e) => setSearchParams({ ...searchParams, searchText: e.target.value })}
                         style={{
                             width: "100%",
                             padding: "0.5rem",
@@ -109,7 +146,10 @@ const App: React.FC = () => {
                 <div>
                     <select
                         value={currentAccount}
-                        onChange={(e) => setCurrentAccount(e.target.value)}
+                        onChange={(e) => {
+                            console.log('Account selected:', e.target.value);
+                            setCurrentAccount(e.target.value);
+                        }}
                         style={{ 
                             padding: "0.5rem", 
                             borderRadius: "4px",
@@ -117,11 +157,15 @@ const App: React.FC = () => {
                             backgroundColor: "#1a1a1a"
                         }}
                     >
-                        {accounts.map((account) => (
-                            <option key={account} value={account}>
-                                {account}
-                            </option>
-                        ))}
+                        <option value="">All Accounts</option>
+                        {(accounts || []).map((account) => {
+                            console.log('Rendering account option:', account);
+                            return (
+                                <option key={account} value={account}>
+                                    {account}
+                                </option>
+                            );
+                        })}
                     </select>
                 </div>
             </header>
@@ -179,18 +223,20 @@ const App: React.FC = () => {
                     <main style={{ 
                         flex: "1 1 auto",
                         display: "flex", 
-                        overflow: "hidden",
                         backgroundColor: "#f1f3f4",
                         padding: "1rem",
                         width: "calc(100% - 200px)",
-                        height: "calc(100vh - 64px)"
+                        height: "100%",
+                        overflow: "hidden" // Prevents unwanted scrolling of the page
                     }}>
-                        <div style={{ 
-                            flex: 1,
-                            display: "flex",
-                            width: "100%",
-                            maxWidth: "100%"
-                        }}>
+                    <div style={{ 
+                        flex: 1,
+                        display: "flex",
+                        width: "100%",
+                        maxWidth: "100%",
+                        height: "100%",
+                        overflow: "hidden"
+                    }}>
                             {loading ? (
                                 <div className="flex items-center justify-center w-full text-black">
                                     Loading...

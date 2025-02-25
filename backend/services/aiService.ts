@@ -66,10 +66,10 @@ Category: ${category}
 Confidence: ${completion.choices[0].finish_reason === 'stop' ? 'High' : 'Low'}
 ----------------------------------------`);
         
-        return category || 'Not Interested';
+        return category || EmailCategory.NotInterested;
     } catch (error) {
         console.error('❌ Error categorizing email:', error);
         console.log('⚠️ Defaulting to "Not Interested" category for:', subject);
-        return 'Not Interested';
+        return EmailCategory.NotInterested;
     }
 }

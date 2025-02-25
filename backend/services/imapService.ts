@@ -5,6 +5,7 @@ import { EmailDocument, EmailCategory } from '../types/shared';
 import dotenv from "dotenv";
 import { categorizeEmail } from './aiService';
 import { sendNotifications } from './notificationService';
+import { EventEmitter } from 'events';
 
 dotenv.config();
 
@@ -35,6 +36,11 @@ const accounts: ImapAccount[] = [
 ];
 
 let imapConnections: Imap[] = [];
+
+interface FetchOptions {
+    bodies: string;
+    struct?: boolean;  // Make struct optional
+}
 
 const connectImap = (account: ImapAccount): Promise<Imap> => {
     return new Promise((resolve, reject) => {
@@ -115,28 +121,24 @@ const fetchLatestEmail = async (imap: Imap, account: ImapAccount, folder: string
                 return;
             }
 
-            // Search for the most recent email
-            const searchCriteria = ['ALL'];
+            const searchCriteria = ['ALL', ['SINCE', new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)]];
             imap.search(searchCriteria, (err, results) => {
                 if (err || !results.length) {
                     resolve();
                     return;
                 }
 
-                // Get only the latest email (highest UID)
-                const latestUID = Math.max(...results);
-                const fetch = imap.fetch([latestUID], {
+                const fetch = imap.fetch(results, {
                     bodies: '',
-                    // @ts-ignore - struct is a valid option but not in type definitions
                     struct: true
-                });
+                } as FetchOptions);
 
                 fetch.on('message', (msg) => {
                     processMessage(msg, account, folder);
                 });
 
                 fetch.once('error', (err) => {
-                    console.error(`Error fetching latest email from ${folder}:`, err);
+                    console.error(`Error fetching emails from ${folder}:`, err);
                     resolve();
                 });
                 fetch.once('end', () => resolve());
@@ -144,6 +146,8 @@ const fetchLatestEmail = async (imap: Imap, account: ImapAccount, folder: string
         });
     });
 };
+
+export const emailEventEmitter = new EventEmitter();
 
 const processMessage = async (msg: any, account: ImapAccount, folder: string) => {
     msg.on('body', (stream: NodeJS.ReadableStream) => {
@@ -178,7 +182,9 @@ const processMessage = async (msg: any, account: ImapAccount, folder: string) =>
                 await storeEmail(emailData);
                 console.log(`📬 Email Processed: ${emailData.subject} (${category})`);
                 
-                // Send notifications if needed
+                // Emit new email event
+                emailEventEmitter.emit('newEmail', emailData);
+                
                 await sendNotifications(emailData);
             } catch (error) {
                 console.error('Error storing email:', error);
@@ -194,14 +200,12 @@ const maintainConnection = async (account: ImapAccount) => {
             const imap = await connectImap(account);
             imapConnections.push(imap);
             
+            // Initial fetch from all folders
             const folders = await getFolders(imap);
-            
-            // Initial fetch
             for (const folder of folders) {
                 await fetchLatestEmail(imap, account, folder);
             }
 
-            // Keep INBOX open and watch for new emails
             await new Promise((resolve) => {
                 imap.openBox('INBOX', false, (err) => {
                     if (err) {
@@ -212,36 +216,21 @@ const maintainConnection = async (account: ImapAccount) => {
 
                     console.log(`INBOX opened for watching - ${account.user}`);
                     
-                    // Listen for new emails without closing connection
+                    // Use simple mail event listener instead of IDLE
                     imap.on('mail', async () => {
                         try {
                             console.log(`New email received for ${account.user}`);
                             await fetchLatestEmail(imap, account, 'INBOX');
                         } catch (error) {
                             console.error('Error processing new email:', error);
-                            // Don't crash on email processing error
                         }
                     });
-                });
-            });
-
-            // Keep connection alive and handle disconnects gracefully
-            await new Promise((resolve) => {
-                imap.on('end', () => {
-                    console.log(`Connection ended for ${account.user}, will reconnect...`);
-                    resolve(null);
-                });
-                
-                imap.on('error', (err) => {
-                    console.error(`Connection error for ${account.user}:`, err);
-                    resolve(null);
                 });
             });
 
         } catch (error) {
             console.error(`Connection error for ${account.user}:`, error);
         }
-        // Wait before reconnecting
         await new Promise(resolve => setTimeout(resolve, 5000));
     }
 };
@@ -253,4 +242,14 @@ export async function fetchEmails() {
             console.error(`Error in maintainConnection for ${account.user}:`, error);
         });
     });
+
+    // In the fetchEmails function
+    const fetchOptions = {
+        bodies: ['HEADER', 'TEXT'],
+        markSeen: false,
+        fetch: true,
+        // Add these options to get recent emails
+        search: ['ALL'],
+        since: new Date(Date.now() - 24 * 60 * 60 * 1000) // Last 24 hours
+    };
 }

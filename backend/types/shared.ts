@@ -1,4 +1,10 @@
-export type EmailCategory = 'Interested' | 'Meeting Booked' | 'Not Interested' | 'Spam' | 'Out of Office';
+export enum EmailCategory {
+    All = 'All',
+    Interested = 'Interested',
+    NotInterested = 'Not Interested',
+    MeetingBooked = 'Meeting Booked',
+    Spam = 'Spam'
+}
 
 export interface EmailDocument {
     id: string;

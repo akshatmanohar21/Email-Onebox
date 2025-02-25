@@ -52,7 +52,7 @@ export const searchEmails = async (params: SearchParams): Promise<Email[]> => {
                         must: must.length > 0 ? must : [{ match_all: {} }]
                     }
                 },
-                size: 100
+                size: 1000  // Increase size from 100 to 1000
             }
         };
 
@@ -60,10 +60,10 @@ export const searchEmails = async (params: SearchParams): Promise<Email[]> => {
 
         // Execute the search
         const result = await client.search(esQuery);
-        const searchResponse = result as any;  // Type assertion for Elasticsearch response
+        console.log('Total hits:', result.body.hits.total);
+        console.log('Number of hits returned:', result.body.hits.hits.length);
         
-        const emails = searchResponse.hits.hits.map((hit: any) => {
-            console.log('Hit from ES:', hit);
+        const emails = result.body.hits.hits.map((hit: any) => {
             return {
                 ...hit._source,
                 id: hit._id,

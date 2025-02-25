@@ -1,43 +1,52 @@
 import axios from 'axios';
-import { EmailDocument as Email, SearchParams } from '../types/shared';
+import { Email, SearchParams } from '../types/shared';
 
-const API_BASE_URL = 'http://localhost:5001/api';
+const BASE_URL = 'http://localhost:5001/api';
 
 export const api = {
     getAllEmails: async (): Promise<Email[]> => {
-        const response = await axios.get(`${API_BASE_URL}/emails`);
+        const response = await axios.get(`${BASE_URL}/emails`);
         return response.data.emails;
     },
 
     searchEmails: async (params: SearchParams): Promise<Email[]> => {
         try {
-            const queryString = new URLSearchParams(params as Record<string, string>).toString();
-            const response = await fetch(`${API_BASE_URL}/emails/search?${queryString}`);
-            const data = await response.json();
-            
-            // Add debug log
-            console.log('API Response:', data);
-            
-            // Check if response has emails property
-            return data.emails || [];
+            const response = await axios.get(`${BASE_URL}/emails/search`, { params });
+            return response.data.emails;
         } catch (error) {
-            console.error('Error in searchEmails:', error);
-            throw error;
+            console.error('Error searching emails:', error);
+            return [];
         }
     },
 
     getFolders: async (): Promise<string[]> => {
-        const response = await axios.get(`${API_BASE_URL}/folders`);
-        return response.data.folders;
+        try {
+            const response = await axios.get(`${BASE_URL}/folders`);
+            return response.data.folders;
+        } catch (error) {
+            console.error('Error fetching folders:', error);
+            return [];
+        }
     },
 
     getAccounts: async (): Promise<string[]> => {
-        const response = await axios.get(`${API_BASE_URL}/accounts`);
-        return response.data.accounts;
+        try {
+            const response = await axios.get(`${BASE_URL}/accounts`);
+            console.log('API getAccounts response:', response.data); // Debug log
+            return response.data; // Should directly use the array
+        } catch (error) {
+            console.error('Error fetching accounts:', error);
+            return [];
+        }
     },
 
     getSuggestedReply: async (emailId: string): Promise<string> => {
-        const response = await axios.get(`${API_BASE_URL}/emails/${emailId}/suggest-reply`);
-        return response.data.suggestedReply;
+        try {
+            const response = await axios.get(`${BASE_URL}/emails/${emailId}/suggest-reply`);
+            return response.data.suggestedReply;
+        } catch (error) {
+            console.error('Error getting reply suggestion:', error);
+            return '';
+        }
     }
 }; 

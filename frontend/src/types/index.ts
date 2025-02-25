@@ -1,12 +1,13 @@
 export interface Email {
+    id: string;
     messageId: string;
+    account: string;
+    folder: string;
     from: string;
     subject: string;
     body: string;
     date: string;
-    folder: string;
-    account: string;
-    category: 'Interested' | 'Meeting Booked' | 'Not Interested' | 'Spam' | 'Out of Office';
+    category: string;
 }
 
 export interface SearchParams {

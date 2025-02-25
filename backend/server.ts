@@ -1,12 +1,13 @@
 import express, { Request, Response as ExpressResponse } from "express";
 import dotenv from "dotenv";
 import { fetchEmails } from "./services/imapService";
-import { initializeElasticsearchIndex, searchEmails, getUniqueAccounts, getUniqueFolders, getAllEmails } from "./services/elasticService";
+import { initializeElasticsearchIndex, searchEmails, getUniqueAccounts, getUniqueFolders, getAllEmails, debugAllEmails, debugFindEmail, clearEmailIndex } from "./services/elasticService";
 import { SearchParams } from "./types/shared";
 import cors from 'cors';
 import { EmailCategory } from "./types/shared";
 import { initVectorStore } from './services/vectorStore';
 import { getReplysuggestion } from "./services/emailService";
+import { emailEventEmitter } from "./services/imapService";
 
 dotenv.config();
 const app = express();
@@ -63,10 +64,11 @@ app.get('/api/folders', async (_req: Request, res: ExpressResponse) => {
 app.get('/api/accounts', async (_req: Request, res: ExpressResponse) => {
     try {
         const accounts = await getUniqueAccounts();
-        res.json({ accounts });
+        console.log('Sending accounts:', accounts);  // Debug log
+        res.json(accounts);  // Send array directly
     } catch (error) {
         console.error('Error fetching accounts:', error);
-        res.status(500).json({ error: 'Failed to fetch accounts' });
+        res.json([]);  // Send empty array on error
     }
 });
 
@@ -82,13 +84,30 @@ app.get('/api/emails/:id/suggest-reply', async (req: Request, res: ExpressRespon
     }
 });
 
+// Add SSE endpoint
+app.get('/api/email-updates', (req, res) => {
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+
+    const listener = () => {
+        res.write('event: refresh\ndata: update\n\n');
+    };
+
+    emailEventEmitter.on('newEmail', listener);
+
+    req.on('close', () => {
+        emailEventEmitter.off('newEmail', listener);
+    });
+});
+
 const startServer = async () => {
     try {
         console.log('Starting server initialization...');
         
-        // Initialize Elasticsearch
-        await initializeElasticsearchIndex();
-        console.log('Elasticsearch index initialized');
+        // Clear and reinitialize Elasticsearch
+        await clearEmailIndex();
+        console.log('Elasticsearch index reset');
 
         // Initialize Vector Store
         await initVectorStore();
@@ -97,7 +116,7 @@ const startServer = async () => {
         // Start the server
         app.listen(PORT, () => {
             console.log(`Server running on http://localhost:${PORT}`);
-            console.log('Starting email fetch...');
+            console.log('Starting fresh email fetch...');
             fetchEmails().catch(error => {
                 console.error('Error in fetchEmails:', error);
             });

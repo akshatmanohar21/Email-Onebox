@@ -1,4 +1,10 @@
-export type EmailCategory = 'Interested' | 'Meeting Booked' | 'Not Interested' | 'Spam' | 'Out of Office';
+export type EmailCategory = 
+    | "All"
+    | "Interested"
+    | "Meeting Booked"
+    | "Not Interested"
+    | "Spam"
+    | "Out of Office";
 
 export interface SearchParams {
     searchText?: string;
@@ -8,11 +14,12 @@ export interface SearchParams {
 }
 
 export interface EmailDocument {
+    id: string;
     messageId: string;
     from: string;
     subject: string;
     body: string;
-    date: Date;
+    date: string;
     folder: string;
     account: string;
     category: EmailCategory;

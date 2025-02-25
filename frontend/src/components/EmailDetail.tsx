@@ -1,9 +1,9 @@
-import { Email } from "../types";
+import { EmailDocument } from "../types/shared";
 import { useState } from 'react';
 import { api } from '../services/api';
 
 interface EmailDetailProps {
-    email: Email;
+    email: EmailDocument;
     onBack: () => void;
 }
 

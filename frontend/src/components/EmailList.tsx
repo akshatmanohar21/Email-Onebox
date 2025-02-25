@@ -7,7 +7,7 @@ interface EmailListProps {
 
 const EmailList: React.FC<EmailListProps> = ({ emails, onSelectEmail }) => {
     return (
-        <div className="w-full h-full overflow-auto">
+        <div className="flex-1 overflow-y-auto max-h-full p-4">
             <div className="space-y-2 p-4">
                 {emails.map((email) => (
                     <div
