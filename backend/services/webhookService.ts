@@ -21,9 +21,7 @@ type WebhookData = {
     }
 }
 
-/**
- * Send email data to webhook endpoint
- */
+// trigger the webhook
 export async function triggerWebhook(email: EmailDocument): Promise<void> {
     if (!webhookUrl) {
         console.warn('No webhook url set');
@@ -40,9 +38,7 @@ export async function triggerWebhook(email: EmailDocument): Promise<void> {
     }
 }
 
-/**
- * Create formatted webhook payload
- */
+// make the payload
 function makePayload(email: EmailDocument): WebhookData {
     return {
         type: 'interested_email',
@@ -57,9 +53,7 @@ function makePayload(email: EmailDocument): WebhookData {
     };
 }
 
-/**
- * Send request to webhook endpoint
- */
+// send the request
 async function sendRequest(data: WebhookData): Promise<void> {
     await axios.post(webhookUrl!, data, {
         timeout: TIMEOUT,

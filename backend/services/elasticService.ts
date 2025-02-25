@@ -35,7 +35,6 @@ interface SearchResult {
 // setup index with basic analyzer
 export async function initializeElasticsearchIndex(): Promise<boolean> {
     try {
-        // @ts-ignore - ES types are weird but this works
         await client.indices.create({
             index: 'emails',
             body: {
@@ -66,7 +65,6 @@ export async function initializeElasticsearchIndex(): Promise<boolean> {
         });
         return true;
     } catch(err: any) {
-        // index might already exist, that's fine
         if(err?.message?.includes('resource_already_exists')) return true;
         console.error('ES init failed:', err);
         return false;
@@ -259,7 +257,6 @@ export const getEmailById = async (id: string) => {
     }
 };
 
-// Add this function to help debug
 export const debugIndex = async () => {
     try {
         const result = await client.search({
@@ -279,11 +276,9 @@ export const debugIndex = async () => {
     }
 };
 
-// Add this to your existing code
 export const debugEmailById = async (id: string) => {
     try {
         console.log('Debugging email ID:', id);
-        // Try direct ID lookup
         const directResult = await client.get({
             index: 'emails',
             id: id
@@ -356,7 +351,7 @@ export async function debugFindEmail(subject: string): Promise<void> {
     }
 }
 
-// Add this function to clear the index
+// clear the index
 export async function clearEmailIndex(): Promise<void> {
     try {
         // Delete the index
@@ -366,7 +361,7 @@ export async function clearEmailIndex(): Promise<void> {
         });
         console.log('Email index cleared successfully');
         
-        // Recreate the index with proper mappings
+        // reinitialize the index
         await initializeElasticsearchIndex();
         console.log('Email index reinitialized');
     } catch (error) {

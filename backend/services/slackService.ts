@@ -25,9 +25,7 @@ type SlackMsg = {
     }[]
 };
 
-/**
- * Send notification to Slack about new email
- */
+// send a slack notification
 export async function sendSlackNotification(email: EmailDocument): Promise<void> {
     if (!channel) {
         console.warn('No slack channel set');

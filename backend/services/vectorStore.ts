@@ -8,11 +8,12 @@ let openai = new OpenAI({
     apiKey: process.env.OPENAI_API_KEY
 });
 
-// setup embeddings and store
+// embeddings
 let embeddings = new OpenAIEmbeddings({
     openAIApiKey: process.env.OPENAI_API_KEY,
 });
 
+// vector store
 let vectorStore = new MemoryVectorStore(embeddings);
 
 // product docs for training

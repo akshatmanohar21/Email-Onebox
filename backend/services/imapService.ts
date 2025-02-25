@@ -73,13 +73,13 @@ const accounts: ImapAccount[] = [
     }
 ].filter(account => account.user && account.password);
 
-// Add this with other interfaces
+// imap events
 interface ImapEvents {
     once(event: 'ready', listener: () => void): void;
     once(event: 'error', listener: (err: Error) => void): void;
 }
 
-// Then update the connectImap function
+// connect to imap
 const connectImap = (account: ImapAccount): Promise<Imap> => {
     return new Promise((resolve, reject) => {
         let imap = new Imap({
