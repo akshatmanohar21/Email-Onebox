@@ -106,80 +106,82 @@ const getFolders = async (imap: Imap): Promise<string[]> => {
     });
 };
 
-const fetchLastMonth = async (imap: Imap, account: ImapAccount, folder: string): Promise<void> => {
+const fetchLatestEmail = async (imap: Imap, account: ImapAccount, folder: string): Promise<void> => {
     return new Promise<void>((resolve, reject) => {
-        const lastMonth = new Date();
-        lastMonth.setDate(lastMonth.getDate() - 30);
-
         imap.openBox(folder, false, (err, box) => {
             if (err) {
                 console.error(`Error opening folder ${folder}:`, err);
-                resolve(); // Skip this folder but continue with others
+                resolve();
                 return;
             }
 
-            const searchCriteria = [['SINCE', lastMonth]];
+            // Search for the most recent email
+            const searchCriteria = ['ALL'];
             imap.search(searchCriteria, (err, results) => {
-                if (err) {
-                    console.error(`Error searching in folder ${folder}:`, err);
+                if (err || !results.length) {
                     resolve();
                     return;
                 }
 
-                if (results.length === 0) {
-                    resolve();
-                    return;
-                }
+                // Get only the latest email (highest UID)
+                const latestUID = Math.max(...results);
+                const fetch = imap.fetch([latestUID], {
+                    bodies: '',
+                    // @ts-ignore - struct is a valid option but not in type definitions
+                    struct: true
+                });
 
-                const fetch = imap.fetch(results, { bodies: '' });
-                
                 fetch.on('message', (msg) => {
-                    msg.on('body', (stream) => {
-                        simpleParser(stream, async (err, parsed: ParsedMail) => {
-                            if (err) {
-                                console.error('Error parsing email:', err);
-                                return;
-                            }
-
-                            // Generate a unique ID
-                            const uniqueId = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-
-                            // Get AI categorization
-                            const category = await categorizeEmail(
-                                parsed.subject || 'No Subject',
-                                parsed.text || ''
-                            );
-
-                            const emailData: EmailDocument = {
-                                messageId: uniqueId,
-                                account: account.user,
-                                folder: folder,
-                                from: parsed.from?.text || 'Unknown',
-                                subject: parsed.subject || 'No Subject',
-                                body: parsed.text || '',
-                                date: parsed.date || new Date(),
-                                category: category
-                            };
-
-                            try {
-                                await storeEmail(emailData);
-                                console.log(`📬 Email Processed: ${emailData.subject} (${category})`);
-                                
-                                // Send notifications if needed
-                                await sendNotifications(emailData);
-                            } catch (error) {
-                                console.error('Error storing email:', error);
-                            }
-                        });
-                    });
+                    processMessage(msg, account, folder);
                 });
 
                 fetch.once('error', (err) => {
-                    console.error(`Error fetching from folder ${folder}:`, err);
+                    console.error(`Error fetching latest email from ${folder}:`, err);
                     resolve();
                 });
                 fetch.once('end', () => resolve());
             });
+        });
+    });
+};
+
+const processMessage = async (msg: any, account: ImapAccount, folder: string) => {
+    msg.on('body', (stream: NodeJS.ReadableStream) => {
+        simpleParser(stream, async (err, parsed: ParsedMail) => {
+            if (err) {
+                console.error('Error parsing email:', err);
+                return;
+            }
+
+            // Generate a unique ID
+            const uniqueId = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+
+            // Get AI categorization
+            const category = await categorizeEmail(
+                parsed.subject || 'No Subject',
+                parsed.text || ''
+            );
+
+            const emailData: EmailDocument = {
+                messageId: uniqueId,
+                account: account.user,
+                folder: folder,
+                from: parsed.from?.text || 'Unknown',
+                subject: parsed.subject || 'No Subject',
+                body: parsed.text || '',
+                date: parsed.date || new Date(),
+                category: category
+            };
+
+            try {
+                await storeEmail(emailData);
+                console.log(`📬 Email Processed: ${emailData.subject} (${category})`);
+                
+                // Send notifications if needed
+                await sendNotifications(emailData);
+            } catch (error) {
+                console.error('Error storing email:', error);
+            }
         });
     });
 };
@@ -195,42 +197,51 @@ const maintainConnection = async (account: ImapAccount) => {
             
             // Initial fetch
             for (const folder of folders) {
-                await fetchLastMonth(imap, account, folder);
+                await fetchLatestEmail(imap, account, folder);
             }
 
             // Keep INBOX open and watch for new emails
-            await new Promise((resolve, reject) => {
+            await new Promise((resolve) => {
                 imap.openBox('INBOX', false, (err) => {
                     if (err) {
                         console.error('Error opening INBOX:', err);
-                        reject(err);
+                        resolve(null);
                         return;
                     }
 
                     console.log(`INBOX opened for watching - ${account.user}`);
                     
-                    // Listen for new emails
+                    // Listen for new emails without closing connection
                     imap.on('mail', async () => {
-                        console.log(`New email received for ${account.user}`);
-                        for (const folder of folders) {
-                            await fetchLastMonth(imap, account, folder);
+                        try {
+                            console.log(`New email received for ${account.user}`);
+                            await fetchLatestEmail(imap, account, 'INBOX');
+                        } catch (error) {
+                            console.error('Error processing new email:', error);
+                            // Don't crash on email processing error
                         }
                     });
                 });
             });
 
-            // Keep connection alive
+            // Keep connection alive and handle disconnects gracefully
             await new Promise((resolve) => {
                 imap.on('end', () => {
-                    console.log(`Connection ended for ${account.user}, reconnecting...`);
+                    console.log(`Connection ended for ${account.user}, will reconnect...`);
+                    resolve(null);
+                });
+                
+                imap.on('error', (err) => {
+                    console.error(`Connection error for ${account.user}:`, err);
                     resolve(null);
                 });
             });
 
         } catch (error) {
             console.error(`Connection error for ${account.user}:`, error);
-            await new Promise(resolve => setTimeout(resolve, 5000));
         }
+        // Wait before reconnecting
+        await new Promise(resolve => setTimeout(resolve, 5000));
     }
 };
 

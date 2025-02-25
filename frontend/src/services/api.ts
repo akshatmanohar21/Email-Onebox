@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { Email, SearchParams } from '../types';
+import { EmailDocument as Email, SearchParams } from '../types/shared';
 
 const API_BASE_URL = 'http://localhost:5001/api';
 

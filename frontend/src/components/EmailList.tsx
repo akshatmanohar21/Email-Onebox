@@ -1,4 +1,4 @@
-import { Email } from "../types";
+import { Email } from "../types/shared";
 
 interface EmailListProps {
     emails: Email[];

@@ -4,7 +4,7 @@ import dotenv from "dotenv";
 
 dotenv.config();
 
-const client = new Client({ 
+export const client = new Client({ 
     node: process.env.ELASTICSEARCH_URL || 'http://localhost:9200',
     maxRetries: 5,
     requestTimeout: 60000
