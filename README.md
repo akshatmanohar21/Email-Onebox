@@ -119,3 +119,64 @@ OPENAI_API_KEY=sk-proj-Qp-8RA9MzOQEswmELrCzPqOJ7VtGlhYavfAOhb3eBM4jMRHOq--GVtqYf
 (Only for testing; will be deactivated after sometime)
 
 ## Note: Using 2 gmail id's for IMAP since all other mail services (Outlook, Yahoo, iCloud) have stopped offering less-secure option.
+
+## Challenges Faced
+
+During development and deployment, you might encounter these common issues:
+
+### IMAP Connection Errors
+- `Error: Invalid credentials (Failure)` - Wrong email/password or 2FA is enabled
+- `Error: Connection timed out` - Network issues or IMAP server unreachable
+- `AUTHENTICATIONFAILED` - Less secure app access not enabled in Gmail
+- `Error: self signed certificate` - SSL certificate verification issues with IMAP
+
+### Elasticsearch Errors
+- `ECONNREFUSED 127.0.0.1:9200` - Elasticsearch not running locally
+- `No Living connections` - Elasticsearch cluster is down or unreachable
+- `index_not_found_exception` - Trying to query an index that doesn't exist
+- `cluster_block_exception` - Disk space full or read-only mode activated
+
+### OpenAI API Errors
+- `429 Too Many Requests` - Rate limit exceeded
+- `401 Unauthorized` - Invalid API key
+- `400 Bad Request` - Invalid request format or parameters
+- `500 Internal Server Error` - OpenAI service issues
+
+### Slack API Errors
+- `not_authed` - Invalid Slack token
+- `channel_not_found` - Incorrect channel ID
+- `invalid_auth` - Token expired or revoked
+- `rate_limited` - Too many requests to Slack API
+
+### Docker Issues
+- `Error: bind: address already in use` - Port 9200 already occupied
+- `Error: max virtual memory areas vm.max_map_count [65530] is too low` - Elasticsearch container needs increased virtual memory
+- `Error: Container exited with code 78` - Insufficient system resources for Elasticsearch
+
+### Common Solutions
+
+1. For IMAP Issues:
+   - Enable "Less secure app access" in Gmail
+   - Create an App Password if using 2FA
+   - Check network connectivity
+   - Verify IMAP is enabled in Gmail settings
+
+2. For Elasticsearch:
+   ```bash
+   # Increase virtual memory for Elasticsearch
+   sudo sysctl -w vm.max_map_count=262144
+   
+   # Clear Elasticsearch data and restart
+   docker-compose down -v
+   docker-compose up -d
+   ```
+
+3. For OpenAI:
+   - Implement rate limiting
+   - Check API key permissions
+   - Verify request payload format
+
+4. For Slack:
+   - Regenerate Slack token
+   - Verify bot permissions
+   - Check channel ID format
