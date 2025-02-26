@@ -110,14 +110,6 @@ You can combine search parameters (searchText, folder, account, category) to cre
 
 Video link: [https://drive.google.com/file/d/1tIGzlE2iJAoNe94UBzxGrNh1lgaRbtFn/view?usp=sharing]
 
-## Environment Variables
-
-You'll need these in your .env file:
-
-OPENAI_API_KEY=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
-
-(Only for testing; will be deactivated after sometime)
-
 ## Note: Using 2 gmail id's for IMAP since all other mail services (Outlook, Yahoo, iCloud) have stopped offering less-secure option.
 
 ## Challenges Faced
