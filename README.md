@@ -39,8 +39,17 @@ The backend uses:
 
 Run these commands:
 
+- `cd backend`
 - `docker-compose d -v`
 - `docker-compose up -v`
+
+## Set up the .env
+
+- Create a new .env file in the backend folder
+- Copy the variable names from .env.example file
+- Add the given OpenAI key for categorization and RAG to work
+- Add you slack token and channel ID for slack notifications
+- Add webhook URL for webhook testing
 
 
 Main folders:
@@ -108,3 +117,5 @@ You'll need these in your .env file:
 OPENAI_API_KEY=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
 
 (Only for testing; will be deactivated after sometime)
+
+## Note: Using 2 gmail id's for IMAP since all other mail services (Outlook, Yahoo, iCloud) have stopped offering less-secure option.
